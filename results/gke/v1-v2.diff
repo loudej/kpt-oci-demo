@@ -1,0 +1,847 @@
+diff -r -u10 compare/gke/v1/cluster/cluster.yaml compare/gke/v2/cluster/cluster.yaml
+--- compare/gke/v1/cluster/cluster.yaml	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/cluster/cluster.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -9,71 +9,68 @@
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an "AS IS" BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ apiVersion: container.cnrm.cloud.google.com/v1beta1
+ kind: ContainerCluster
+ metadata: # kpt-merge: config-control/example-us-east4
+   name: example-us-east4 # kpt-set: ${cluster-name}
+   namespace: config-control # kpt-set: ${platform-namespace}
+-  labels:
+-    # Label with the environment to allow listing clusters by environment.
+-    gke.io/environment: dev # kpt-set: ${environment}
++  labels: {}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-cluster/v0.3.0,kpt-pkg
+-    cnrm.cloud.google.com/project-id: platform-project-id # kpt-set: ${platform-project-id}
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-cluster/v0.4.0
++    cnrm.cloud.google.com/project-id: project-id # kpt-set: ${project-id}
+     # Remove the default node pool after bootstrapping.
+     # Explcit node pool configuration allows for more isolation and makes it
+     # easier to replace node pools to change immutable fields.
+     cnrm.cloud.google.com/remove-default-node-pool: "true"
+ spec:
+   addonsConfig:
+     # Enable NodeLocal DNSCache by default, for increased performance and scaling.
+     # https://cloud.google.com/kubernetes-engine/docs/how-to/nodelocal-dns-cache
+     dnsCacheConfig:
+       enabled: true
+     # Enable Compute Engine persistent disk CSI Driver by default, for access to
+     # volume snapshots and encryption with customer-managed encryption keys.
+     # https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/gce-pd-csi-driver
+     gcePersistentDiskCsiDriverConfig:
+       enabled: true
+     # Enable Network Policy by default, for increased security.
+     # https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy
+-    networkPolicyConfig:
+-      disabled: false
++    networkPolicyConfig: {}
+   # Enable Groups for GKE, to allow role binding to Google Groups.
+   authenticatorGroupsConfig:
+     securityGroup: gke-security-group@example.com # kpt-set: ${security-group}
+   # Enable Binary Authorization by default, to allow configuration of constraint
+   # policies and container image attestation.
+   # https://cloud.google.com/binary-authorization/docs/overview
+   enableBinaryAuthorization: true
+   # Enable Shielded GKE Nodes by default, to protect bootstrap credentials.
+   # https://cloud.google.com/kubernetes-engine/docs/how-to/shielded-gke-nodes
+   enableShieldedNodes: true
+   # Must be at least 1 when using remove-default-node-pool.
+   initialNodeCount: 1
+   # Use VPC-native networking by default, with named secondary IP ranges.
+   ipAllocationPolicy:
+-    clusterSecondaryRangeName: pods
+-    servicesSecondaryRangeName: services
++    clusterSecondaryRangeName: pods # kpt-set: ${pods-range-name}
++    servicesSecondaryRangeName: services # kpt-set: ${services-range-name}
+   location: us-east4 # kpt-set: ${location}
+   # Allow internet access to the GKE control plane by default.
+   # This default is a deliberate compromise for ease of use over security.
+   # For increased security, reduce the CIDR blocks to cover only known clients.
+   masterAuthorizedNetworksConfig:
+     cidrBlocks:
+       - cidrBlock: 0.0.0.0/0
+         displayName: Whole Internet
+   networkRef:
+-    external: projects/network-project-id/global/networks/default # kpt-set: projects/${network-project-id}/global/networks/${network-name}
++    external: projects/network-project-id/global/networks/default # kpt-set: ${network-ref}
+   privateClusterConfig:
+     # Allow public access to the GKE control plane by default.
+     # This default is a deliberate compromise for ease of use over security.
+     # For increased security, set to true to disable public IP access.
+     enablePrivateEndpoint: false
+     # Default to private nodes (no public IP).
+     enablePrivateNodes: true
+     # Enable global access to the GKE control plane's internal loab balancer.
+     # https://cloud.google.com/load-balancing/docs/internal/setting-up-internal#ilb-global-access
+     masterGlobalAccessConfig:
+@@ -81,19 +78,30 @@
+     masterIpv4CidrBlock: 10.254.0.0/28 # kpt-set: ${master-ip-range}
+   # Default to the REGULAR channel.
+   # Use RAPID for faster access to features and fixes.
+   # Use STABLE for less disruption.
+   # Use UNSPECIFIED to unenroll from automatic updates.
+   releaseChannel:
+     channel: REGULAR
+   # Use a dedicated subnet by default, to increase isolation and allow for
+   # cluster-specific firewalls.
+   subnetworkRef:
+-    name: platform-project-id-example-us-east4 # kpt-set: ${platform-project-id}-${cluster-name}
+-    namespace: networking # kpt-set: ${networking-namespace}
++    external: projects/network-project-id/regions/us-west4/subnetworks/default # kpt-set: ${subnet-ref}
+   # Enable Vertical Pod Autoscaling by default.
+   # https://cloud.google.com/kubernetes-engine/docs/concepts/verticalpodautoscaler
+   verticalPodAutoscaling:
+     enabled: true
+   # Enable workload identity by default.
+   workloadIdentityConfig:
+-    identityNamespace: platform-project-id.svc.id.goog # kpt-set: ${platform-project-id}.svc.id.goog
++    identityNamespace: project-id.svc.id.goog # kpt-set: ${project-id}.svc.id.goog
++  # Enable dataplane V2
++  # https://cloud.google.com/kubernetes-engine/docs/concepts/dataplane-v2
++  datapathProvider: ADVANCED_DATAPATH
++  # Enable logging
++  loggingConfig:
++    enableComponents:
++      - "SYSTEM_COMPONENTS"
++      - "WORKLOADS"
++  # Enable monitoring
++  monitoringConfig:
++    enableComponents:
++      - "SYSTEM_COMPONENTS"
+diff -r -u10 compare/gke/v1/cluster/container-api.yaml compare/gke/v2/cluster/container-api.yaml
+--- compare/gke/v1/cluster/container-api.yaml	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/cluster/container-api.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -7,20 +7,20 @@
+ #      http://www.apache.org/licenses/LICENSE-2.0
+ #
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an "AS IS" BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ # Enable the Container service in the platform project
+ apiVersion: serviceusage.cnrm.cloud.google.com/v1beta1
+ kind: Service
+-metadata: # kpt-merge: projects/platform-project-id-cluster-name-container
++metadata: # kpt-merge: projects/project-id-cluster-name-container
+   # Use a unique name to avoid overlap with other cluster package instances.
+-  name: platform-project-id-cluster-name-container # kpt-set: ${platform-project-id}-${cluster-name}-container
++  name: project-id-cluster-name-container # kpt-set: ${project-id}-${cluster-name}-container
+   namespace: projects # kpt-set: ${projects-namespace}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-cluster/v0.3.0,kpt-pkg
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-cluster/v0.4.0
+     cnrm.cloud.google.com/deletion-policy: abandon
+-    cnrm.cloud.google.com/project-id: platform-project-id # kpt-set: ${platform-project-id}
++    cnrm.cloud.google.com/project-id: project-id # kpt-set: ${project-id}
+ spec:
+   resourceID: container.googleapis.com
+diff -r -u10 compare/gke/v1/cluster/README.md compare/gke/v2/cluster/README.md
+--- compare/gke/v1/cluster/README.md	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/cluster/README.md	2022-01-26 01:50:01.295026491 +0000
+@@ -1,77 +1,80 @@
++<!-- BEGINNING OF PRE-COMMIT-BLUEPRINT DOCS HOOK:TITLE -->
+ # GKE Cluster blueprint
+ 
++
++<!-- END OF PRE-COMMIT-BLUEPRINT DOCS HOOK:TITLE -->
++<!-- BEGINNING OF PRE-COMMIT-BLUEPRINT DOCS HOOK:BODY -->
+ A GKE cluster with public masters and private nodes
+ 
+ ## Setters
+ 
+-```
+-Setter                Usages
+-cluster-name          4
+-environment           2
+-location              2
+-master-ip-range       2
+-networking-namespace  2
+-network-name          2
+-network-project-id    2
+-platform-namespace    2
+-platform-project-id   6
+-projects-namespace    2
+-security-group        2
+-```
++|        Name         |                             Value                              | Type | Count |
++|---------------------|----------------------------------------------------------------|------|-------|
++| cluster-name        | example-us-west4                                               | str  |     2 |
++| location            | us-east4                                                       | str  |     1 |
++| master-ip-range     | 10.254.0.0/28                                                  | str  |     1 |
++| network-ref         | projects/network-project-id/global/networks/default            | str  |     1 |
++| platform-namespace  | config-control                                                 | str  |     1 |
++| pods-range-name     | pods                                                           | str  |     1 |
++| project-id          | project-id                                                     | str  |     4 |
++| projects-namespace  | projects                                                       | str  |     1 |
++| security-group      | gke-security-groups@example.com                                | str  |     1 |
++| services-range-name | services                                                       | str  |     1 |
++| subnet-ref          | projects/network-project-id/regions/region/subnetworks/default | str  |     1 |
+ 
+ ## Sub-packages
+ 
+ This package has no sub-packages.
+ 
+ ## Resources
+ 
+-```
+-File                APIVersion                                  Kind              Name                                        Namespace
+-cluster.yaml        container.cnrm.cloud.google.com/v1beta1     ContainerCluster  example-us-east4                            config-control
+-container-api.yaml  serviceusage.cnrm.cloud.google.com/v1beta1  Service           platform-project-id-cluster-name-container  projects
+-```
++|        File        |                 APIVersion                 |       Kind       |               Name                |   Namespace    |
++|--------------------|--------------------------------------------|------------------|-----------------------------------|----------------|
++| cluster.yaml       | container.cnrm.cloud.google.com/v1beta1    | ContainerCluster | example-us-east4                  | config-control |
++| container-api.yaml | serviceusage.cnrm.cloud.google.com/v1beta1 | Service          | project-id-cluster-name-container | projects       |
+ 
+ ## Resource References
+ 
+ - [ContainerCluster](https://cloud.google.com/config-connector/docs/reference/resource-docs/container/containercluster)
+ - [Service](https://cloud.google.com/config-connector/docs/reference/resource-docs/serviceusage/service)
+ 
+ ## Usage
+ 
+ 1.  Clone the package:
+-    ```
++    ```shell
+     kpt pkg get https://github.com/GoogleCloudPlatform/blueprints.git/catalog/gke/cluster@${VERSION}
+     ```
+     Replace `${VERSION}` with the desired repo branch or tag
+     (for example, `main`).
+ 
+ 1.  Move into the local package:
+-    ```
++    ```shell
+     cd "./cluster/"
+     ```
+ 
+ 1.  Edit the function config file(s):
+     - setters.yaml
+ 
+ 1.  Execute the function pipeline
+-    ```
++    ```shell
+     kpt fn render
+     ```
+ 
+ 1.  Initialize the resource inventory
+-    ```
++    ```shell
+     kpt live init --namespace ${NAMESPACE}"
+     ```
+     Replace `${NAMESPACE}` with the namespace in which to manage
+     the inventory ResourceGroup (for example, `config-control`).
+ 
+ 1.  Apply the package resources to your cluster
+-    ```
++    ```shell
+     kpt live apply
+     ```
+ 
+ 1.  Wait for the resources to be ready
+-    ```
++    ```shell
+     kpt live status --output table --poll-until current
+     ```
+ 
++<!-- END OF PRE-COMMIT-BLUEPRINT DOCS HOOK:BODY -->
+diff -r -u10 compare/gke/v1/cluster/setters.yaml compare/gke/v2/cluster/setters.yaml
+--- compare/gke/v1/cluster/setters.yaml	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/cluster/setters.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -5,38 +5,47 @@
+ # You may obtain a copy of the License at
+ #
+ #      http://www.apache.org/licenses/LICENSE-2.0
+ #
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an "AS IS" BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++# Copyright 2021 Google LLC
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
+ apiVersion: v1
+ kind: ConfigMap
+ metadata: # kpt-merge: /setters
+   name: setters
+ data:
+   # The name of this cluster
+-  cluster-name: example-us-west4 # kpt-set: ${cluster-name}
+-  # The environment (set as a label on the cluster)
+-  environment: dev # kpt-set: ${environment}
+-  # The compute location (region or zone)
+-  location: us-east4 # kpt-set: ${location}
++  cluster-name: example-us-west4
++  # The compute location (region for a regional cluster or zone for a zonal cluster)
++  location: us-east4
+   # The private IP range for masters to use when peering to the VPC
+-  master-ip-range: 10.254.0.0/28 # kpt-set: ${master-ip-range}
+-  # The name of the VPC in which to create this cluster
+-  network-name: default # kpt-set: ${network-name}
+-  # The project that the VPC is in
+-  network-project-id: network-project-id # kpt-set: ${network-project-id}
+-  # The namespace in which to reference the subnet resource
+-  networking-namespace: networking # kpt-set: ${networking-namespace}
++  master-ip-range: 10.254.0.0/28
+   # The namespace in which to manage cluster resources
+-  platform-namespace: config-control # kpt-set: ${platform-namespace}
+-  # The project in which to manage cluster resources
+-  platform-project-id: platform-project-id # kpt-set: ${platform-project-id}
++  platform-namespace: config-control
+   # The namespace in which to manage service enablement resources
+-  projects-namespace: projects # kpt-set: ${projects-namespace}
++  projects-namespace: projects
+   # The group in which to manage the list of groups that can be used for RBAC.
+   # Must be named exactly 'gke-security-groups'.
+-  security-group: gke-security-group@example.com # kpt-set: ${security-group}
++  security-group: gke-security-groups@example.com
++  # The name of the VPC in which to create this cluster
++  network-ref: projects/network-project-id/global/networks/default
++  # The project in which to manage cluster resources
++  project-id: project-id
++  # The reference to the subnet
++  subnet-ref: projects/network-project-id/regions/region/subnetworks/default
+diff -r -u10 compare/gke/v1/Kptfile compare/gke/v2/Kptfile
+--- compare/gke/v1/Kptfile	2022-01-26 01:50:00.782990508 +0000
++++ compare/gke/v2/Kptfile	2022-01-26 01:50:01.299026772 +0000
+@@ -2,34 +2,31 @@
+ kind: Kptfile
+ metadata:
+   name: gke
+   annotations:
+     blueprints.cloud.google.com/title: GKE blueprint
+ upstream:
+   type: git
+   git:
+     repo: https://github.com/GoogleCloudPlatform/blueprints
+     directory: /catalog/gke
+-    ref: v0.3.0
++    ref: main
+   updateStrategy: resource-merge
+ upstreamLock:
+   type: git
+   git:
+     repo: https://github.com/GoogleCloudPlatform/blueprints
+     directory: /catalog/gke
+-    ref: v0.3.0
+-    commit: 5357d04c603102201aa65a059d77e4c67b68a729
++    ref: main
++    commit: f5cafa4614b78c7300f88a5a38c16a94ac7798cd
+ origin:
+   type: oci
+   oci:
+-    image: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke:v1
+-    digest: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke@sha256:33901be03c6b557c5cff9744a8fe2e5c9784b6bc2daf946a2b151a6845f7be66
++    image: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke:v2
++    digest: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke@sha256:c2f83435928e500f4fbc41603fcbaf2dff54289382db091e0b9df0a7b4e59e73
+ info:
+   description: |
+-    A GKE cluster with a primary node pool and a dedicated subnet.
+-
+-    For a full tutorial, see
+-    [Managing GKE clusters with ConfigController](https://cloud.google.com/anthos-config-management/docs/tutorials/gke-cluster-blueprint).
++    A GKE cluster with a primary node pool. An existing subnet needs to be provided where the cluster should be created.
+ pipeline:
+   mutators:
+     - image: gcr.io/kpt-fn/apply-setters:v0.1
+       configPath: setters.yaml
+diff -r -u10 compare/gke/v1/nodepools/primary/node-iam.yaml compare/gke/v2/nodepools/primary/node-iam.yaml
+--- compare/gke/v1/nodepools/primary/node-iam.yaml	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/nodepools/primary/node-iam.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -11,71 +11,71 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ # Service Account for GKE nodes
+ apiVersion: iam.cnrm.cloud.google.com/v1beta1
+ kind: IAMServiceAccount
+ metadata: # kpt-merge: config-control/gke-example-us-east4-primary
+   name: gke-example-us-east4-primary # kpt-set: gke-${cluster-name}-${nodepool-name}
+   namespace: config-control # kpt-set: ${platform-namespace}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.3.0,kpt-pkg
+-    cnrm.cloud.google.com/project-id: platform-project-id # kpt-set: ${platform-project-id}
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.4.0
++    cnrm.cloud.google.com/project-id: project-id # kpt-set: ${project-id}
+ spec:
+   displayName: gke-example-us-east4-primary # kpt-set: gke-${cluster-name}-${nodepool-name}
+ ---
+ # Allow fluentd to send logs to StackDriver
+ apiVersion: iam.cnrm.cloud.google.com/v1beta1
+ kind: IAMPolicyMember
+ metadata: # kpt-merge: config-control/logwriter-gke-example-us-east4-primary
+   name: logwriter-gke-example-us-east4-primary # kpt-set: logwriter-gke-${cluster-name}-${nodepool-name}
+   namespace: config-control # kpt-set: ${platform-namespace}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.3.0,kpt-pkg
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.4.0
+ spec:
+   memberFrom:
+     serviceAccountRef:
+       name: gke-example-us-east4-primary # kpt-set: gke-${cluster-name}-${nodepool-name}
+       namespace: config-control # kpt-set: ${platform-namespace}
+   resourceRef:
+     apiVersion: resourcemanager.cnrm.cloud.google.com/v1beta1
+     kind: Project
+-    external: platform-project-id # kpt-set: ${platform-project-id}
++    external: project-id # kpt-set: ${project-id}
+   role: roles/logging.logWriter
+ ---
+ # Allow fluentd to send metrics to StackDriver
+ apiVersion: iam.cnrm.cloud.google.com/v1beta1
+ kind: IAMPolicyMember
+ metadata: # kpt-merge: config-control/metricwriter-gke-example-us-east4-primary
+   name: metricwriter-gke-example-us-east4-primary # kpt-set: metricwriter-gke-${cluster-name}-${nodepool-name}
+   namespace: config-control # kpt-set: ${platform-namespace}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.3.0,kpt-pkg
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.4.0
+ spec:
+   memberFrom:
+     serviceAccountRef:
+       name: gke-example-us-east4-primary # kpt-set: gke-${cluster-name}-${nodepool-name}
+       namespace: config-control # kpt-set: ${platform-namespace}
+   resourceRef:
+     apiVersion: resourcemanager.cnrm.cloud.google.com/v1beta1
+     kind: Project
+-    external: platform-project-id # kpt-set: ${platform-project-id}
++    external: project-id # kpt-set: ${project-id}
+   role: roles/monitoring.metricWriter
+ ---
+-# Allow kubelet/docker/containerd to read all artifacts/images in the platform-project-id project
++# Allow kubelet/docker/containerd to read all artifacts/images in the project-id project
+ apiVersion: iam.cnrm.cloud.google.com/v1beta1
+ kind: IAMPolicyMember
+ metadata: # kpt-merge: config-control/artifactreader-gke-example-us-east4-primary
+   name: artifactreader-gke-example-us-east4-primary # kpt-set: artifactreader-gke-${cluster-name}-${nodepool-name}
+   namespace: config-control # kpt-set: ${platform-namespace}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.3.0,kpt-pkg
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.4.0
+ spec:
+   memberFrom:
+     serviceAccountRef:
+       name: gke-example-us-east4-primary # kpt-set: gke-${cluster-name}-${nodepool-name}
+       namespace: config-control # kpt-set: ${platform-namespace}
+   resourceRef:
+     apiVersion: resourcemanager.cnrm.cloud.google.com/v1beta1
+     kind: Project
+-    external: platform-project-id # kpt-set: ${platform-project-id}
++    external: project-id # kpt-set: ${project-id}
+   role: roles/artifactregistry.reader
+diff -r -u10 compare/gke/v1/nodepools/primary/nodepool.yaml compare/gke/v2/nodepools/primary/nodepool.yaml
+--- compare/gke/v1/nodepools/primary/nodepool.yaml	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/nodepools/primary/nodepool.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -10,22 +10,22 @@
+ # distributed under the License is distributed on an "AS IS" BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ apiVersion: container.cnrm.cloud.google.com/v1beta1
+ kind: ContainerNodePool
+ metadata: # kpt-merge: config-control/example-us-east4-primary
+   name: example-us-east4-primary # kpt-set: ${cluster-name}-${nodepool-name}
+   namespace: config-control # kpt-set: ${platform-namespace}
+   annotations:
+-    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.3.0,kpt-pkg
+-    cnrm.cloud.google.com/project-id: platform-project-id # kpt-set: ${platform-project-id}
++    cnrm.cloud.google.com/blueprint: cnrm/gke:gke-nodepool/v0.4.0
++    cnrm.cloud.google.com/project-id: project-id # kpt-set: ${project-id}
+ spec:
+   autoscaling:
+     # maxNodeCount is per-zone, for regional clusters
+     maxNodeCount: 2 # kpt-set: ${max-node-count}
+     # minNodeCount is per-zone, for regional clusters
+     minNodeCount: 1
+   clusterRef:
+     name: example-us-east4 # kpt-set: ${cluster-name}
+   # At least one node is required for cluster system components.
+   # initialNodeCount is per-zone, for regional clusters
+@@ -42,17 +42,15 @@
+   nodeConfig:
+     labels:
+       gke.io/nodepool: primary # kpt-set: ${nodepool-name}
+     # diskSizeGb should include enough space for system components and the
+     # container image cache, in addition to space used by user workloads.
+     diskSizeGb: 100
+     # Default to SSD for higher IOPS / $ vs standard disks.
+     diskType: pd-ssd
+     # Default to e2, the most modern & efficient machine type family.
+     machineType: e2-standard-16
+-    # Explicit scopes are required when using a custom serice account.
++    # Set the scope to cloud platform and use IAM to manage permissions
+     oauthScopes:
+-      - storage-ro
+-      - https://www.googleapis.com/auth/logging.write
+-      - https://www.googleapis.com/auth/monitoring
++      - https://www.googleapis.com/auth/cloud-platform
+     serviceAccountRef:
+       name: gke-example-us-east4-primary # kpt-set: gke-${cluster-name}-${nodepool-name}
+diff -r -u10 compare/gke/v1/nodepools/primary/README.md compare/gke/v2/nodepools/primary/README.md
+--- compare/gke/v1/nodepools/primary/README.md	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/nodepools/primary/README.md	2022-01-26 01:50:01.295026491 +0000
+@@ -1,77 +1,80 @@
++<!-- BEGINNING OF PRE-COMMIT-BLUEPRINT DOCS HOOK:TITLE -->
+ # GKE Node Pool blueprint
+ 
++
++<!-- END OF PRE-COMMIT-BLUEPRINT DOCS HOOK:TITLE -->
++<!-- BEGINNING OF PRE-COMMIT-BLUEPRINT DOCS HOOK:BODY -->
+ A GKE node pool with a dedicated service account
+ 
+ ## Setters
+ 
+-```
+-Setter               Usages
+-cluster-name         12
+-location             2
+-max-node-count       2
+-nodepool-name        12
+-platform-namespace   9
+-platform-project-id  6
+-projects-namespace   1
+-```
++|        Name        |      Value       | Type | Count |
++|--------------------|------------------|------|-------|
++| cluster-name       | example-us-east4 | str  |    11 |
++| location           | us-east4         | str  |     1 |
++| max-node-count     |                2 | int  |     1 |
++| nodepool-name      | primary          | str  |    11 |
++| platform-namespace | config-control   | str  |     8 |
++| project-id         | project-id       | str  |     5 |
++| projects-namespace | projects         | str  |     0 |
+ 
+ ## Sub-packages
+ 
+ This package has no sub-packages.
+ 
+ ## Resources
+ 
+-```
+-File           APIVersion                               Kind               Name                                         Namespace
+-node-iam.yaml  iam.cnrm.cloud.google.com/v1beta1        IAMPolicyMember    artifactreader-gke-example-us-east4-primary  config-control
+-node-iam.yaml  iam.cnrm.cloud.google.com/v1beta1        IAMPolicyMember    logwriter-gke-example-us-east4-primary       config-control
+-node-iam.yaml  iam.cnrm.cloud.google.com/v1beta1        IAMPolicyMember    metricwriter-gke-example-us-east4-primary    config-control
+-node-iam.yaml  iam.cnrm.cloud.google.com/v1beta1        IAMServiceAccount  gke-example-us-east4-primary                 config-control
+-nodepool.yaml  container.cnrm.cloud.google.com/v1beta1  ContainerNodePool  example-us-east4-primary                     config-control
+-```
++|     File      |               APIVersion                |       Kind        |                    Name                     |   Namespace    |
++|---------------|-----------------------------------------|-------------------|---------------------------------------------|----------------|
++| node-iam.yaml | iam.cnrm.cloud.google.com/v1beta1       | IAMServiceAccount | gke-example-us-east4-primary                | config-control |
++| node-iam.yaml | iam.cnrm.cloud.google.com/v1beta1       | IAMPolicyMember   | logwriter-gke-example-us-east4-primary      | config-control |
++| node-iam.yaml | iam.cnrm.cloud.google.com/v1beta1       | IAMPolicyMember   | metricwriter-gke-example-us-east4-primary   | config-control |
++| node-iam.yaml | iam.cnrm.cloud.google.com/v1beta1       | IAMPolicyMember   | artifactreader-gke-example-us-east4-primary | config-control |
++| nodepool.yaml | container.cnrm.cloud.google.com/v1beta1 | ContainerNodePool | example-us-east4-primary                    | config-control |
+ 
+ ## Resource References
+ 
+ - [ContainerNodePool](https://cloud.google.com/config-connector/docs/reference/resource-docs/container/containernodepool)
+ - [IAMPolicyMember](https://cloud.google.com/config-connector/docs/reference/resource-docs/iam/iampolicymember)
+ - [IAMServiceAccount](https://cloud.google.com/config-connector/docs/reference/resource-docs/iam/iamserviceaccount)
+ 
+ ## Usage
+ 
+ 1.  Clone the package:
+-    ```
++    ```shell
+     kpt pkg get https://github.com/GoogleCloudPlatform/blueprints.git/catalog/gke/nodepools/primary@${VERSION}
+     ```
+     Replace `${VERSION}` with the desired repo branch or tag
+     (for example, `main`).
+ 
+ 1.  Move into the local package:
+-    ```
++    ```shell
+     cd "./primary/"
+     ```
+ 
+ 1.  Edit the function config file(s):
+     - setters.yaml
+ 
+ 1.  Execute the function pipeline
+-    ```
++    ```shell
+     kpt fn render
+     ```
+ 
+ 1.  Initialize the resource inventory
+-    ```
++    ```shell
+     kpt live init --namespace ${NAMESPACE}"
+     ```
+     Replace `${NAMESPACE}` with the namespace in which to manage
+     the inventory ResourceGroup (for example, `config-control`).
+ 
+ 1.  Apply the package resources to your cluster
+-    ```
++    ```shell
+     kpt live apply
+     ```
+ 
+ 1.  Wait for the resources to be ready
+-    ```
++    ```shell
+     kpt live status --output table --poll-until current
+     ```
+ 
++<!-- END OF PRE-COMMIT-BLUEPRINT DOCS HOOK:BODY -->
+diff -r -u10 compare/gke/v1/nodepools/primary/setters.yaml compare/gke/v2/nodepools/primary/setters.yaml
+--- compare/gke/v1/nodepools/primary/setters.yaml	2022-01-26 01:50:00.782990508 +0000
++++ compare/gke/v2/nodepools/primary/setters.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -5,29 +5,42 @@
+ # You may obtain a copy of the License at
+ #
+ #      http://www.apache.org/licenses/LICENSE-2.0
+ #
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an "AS IS" BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++# Copyright 2021 Google LLC
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
+ apiVersion: v1
+ kind: ConfigMap
+ metadata: # kpt-merge: /setters
+   name: setters
+ data:
+   # The name of the cluster to attach this node pool to
+-  cluster-name: example-us-east4 # kpt-set: ${cluster-name}
+-  # The compute location (region or zone)
+-  location: us-east4 # kpt-set: ${location}
++  cluster-name: example-us-east4
++  # The compute location (region for a regional cluster or zone for a zonal cluster)
++  location: us-east4
+   # The maximum nodes per zone for this pool
+-  max-node-count: "2" # kpt-set: ${max-node-count}
++  max-node-count: "2"
+   # The name of this node pool
+-  nodepool-name: primary # kpt-set: ${nodepool-name}
++  nodepool-name: primary
+   # The namespace in which to manage cluster resources
+-  platform-namespace: config-control # kpt-set: ${platform-namespace}
+-  # The project in which to manage cluster resources
+-  platform-project-id: platform-project-id # kpt-set: ${platform-project-id}
++  platform-namespace: config-control
+   # The namespace in which to manage service enablement resources
+-  projects-namespace: projects # kpt-set: ${projects-namespace}
++  projects-namespace: projects
++  # The project in which to manage cluster resources
++  project-id: project-id
+diff -r -u10 compare/gke/v1/README.md compare/gke/v2/README.md
+--- compare/gke/v1/README.md	2022-01-26 01:50:00.778990226 +0000
++++ compare/gke/v2/README.md	2022-01-26 01:50:01.295026491 +0000
+@@ -1,82 +1,79 @@
++<!-- BEGINNING OF PRE-COMMIT-BLUEPRINT DOCS HOOK:TITLE -->
+ # GKE blueprint
+ 
+-A GKE cluster with a primary node pool and a dedicated subnet.
+ 
+-For a full tutorial, see
+-[Managing GKE clusters with ConfigController](https://cloud.google.com/anthos-config-management/docs/tutorials/gke-cluster-blueprint).
++<!-- END OF PRE-COMMIT-BLUEPRINT DOCS HOOK:TITLE -->
++<!-- BEGINNING OF PRE-COMMIT-BLUEPRINT DOCS HOOK:BODY -->
++A GKE cluster with a primary node pool. An existing subnet needs to be provided where the cluster should be created.
+ 
+ ## Setters
+ 
+-```
+-Setter                Usages
+-cluster-name          19
+-environment           2
+-location              6
+-master-ip-range       2
+-max-node-count        2
+-networking-namespace  4
+-network-name          4
+-network-project-id    5
+-node-ip-range         2
+-nodepool-name         12
+-platform-namespace    11
+-platform-project-id   15
+-pod-ip-range          2
+-projects-namespace    3
+-security-group        2
+-service-ip-range      2
+-```
++|        Name         |                             Value                              | Type | Count |
++|---------------------|----------------------------------------------------------------|------|-------|
++| cluster-name        | example-us-west4                                               | str  |    13 |
++| location            | us-east4                                                       | str  |     2 |
++| master-ip-range     | 10.254.0.0/28                                                  | str  |     1 |
++| max-node-count      |                                                              2 | int  |     1 |
++| network-ref         | projects/network-project-id/global/networks/default            | str  |     1 |
++| nodepool-name       | primary                                                        | str  |    11 |
++| platform-namespace  | config-control                                                 | str  |     9 |
++| pods-range-name     | pods                                                           | str  |     1 |
++| project-id          | project-id                                                     | str  |     9 |
++| projects-namespace  | projects                                                       | str  |     1 |
++| security-group      | gke-security-groups@example.com                                | str  |     1 |
++| services-range-name | services                                                       | str  |     1 |
++| subnet-ref          | projects/network-project-id/regions/region/subnetworks/default | str  |     1 |
+ 
+ ## Sub-packages
+ 
+-- [cluster](/catalog/gke/cluster)
+-- [nodepools/primary](/catalog/gke/nodepools/primary)
+-- [subnet](/catalog/gke/subnet)
++- [gke-cluster](cluster)
++- [gke-nodepool](nodepools/primary)
+ 
+ ## Resources
+ 
+ This package has no top-level resources. See sub-packages.
+ 
+ ## Resource References
+ 
+ This package has no top-level resources. See sub-packages.
+ 
+ ## Usage
+ 
+ 1.  Clone the package:
+-    ```
++    ```shell
+     kpt pkg get https://github.com/GoogleCloudPlatform/blueprints.git/catalog/gke@${VERSION}
+     ```
+     Replace `${VERSION}` with the desired repo branch or tag
+     (for example, `main`).
+ 
+ 1.  Move into the local package:
+-    ```
++    ```shell
+     cd "./gke/"
+     ```
+ 
+ 1.  Edit the function config file(s):
+     - setters.yaml
+ 
+ 1.  Execute the function pipeline
+-    ```
++    ```shell
+     kpt fn render
+     ```
+ 
+ 1.  Initialize the resource inventory
+-    ```
++    ```shell
+     kpt live init --namespace ${NAMESPACE}"
+     ```
+     Replace `${NAMESPACE}` with the namespace in which to manage
+     the inventory ResourceGroup (for example, `config-control`).
+ 
+ 1.  Apply the package resources to your cluster
+-    ```
++    ```shell
+     kpt live apply
+     ```
+ 
+ 1.  Wait for the resources to be ready
+-    ```
++    ```shell
+     kpt live status --output table --poll-until current
+     ```
+ 
++<!-- END OF PRE-COMMIT-BLUEPRINT DOCS HOOK:BODY -->
+diff -r -u10 compare/gke/v1/setters.yaml compare/gke/v2/setters.yaml
+--- compare/gke/v1/setters.yaml	2022-01-26 01:50:00.782990508 +0000
++++ compare/gke/v2/setters.yaml	2022-01-26 01:50:01.295026491 +0000
+@@ -5,44 +5,51 @@
+ # You may obtain a copy of the License at
+ #
+ #      http://www.apache.org/licenses/LICENSE-2.0
+ #
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an "AS IS" BASIS,
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++# Copyright 2021 Google LLC
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
+ apiVersion: v1
+ kind: ConfigMap
+ metadata: # kpt-merge: /setters
+   name: setters
+ data:
+   # The name of this cluster
+   cluster-name: example-us-west4
+-  # The environment (set as a label on the cluster)
+-  environment: dev
+-  # The compute location (region or zone)
++  # The compute location (region for a regional cluster or zone for a zonal cluster)
+   location: us-east4
+   # The private IP range for masters to use when peering to the VPC
+   master-ip-range: 10.254.0.0/28
+-  # The name of the VPC in which to create a dedicated subnet
+-  network-name: default
+-  # The project that the VPC is in
+-  network-project-id: network-project-id
+-  # The namespace in which to manage network resources
+-  networking-namespace: config-control
+-  # The private IP range for nodes to use, allocated to the dedicated subnet
+-  node-ip-range: 10.3.4.0/22
+   # The namespace in which to manage cluster resources
+   platform-namespace: config-control
+-  # The project in which to manage cluster resources
+-  platform-project-id: platform-project-id
+-  # The private IP range for pods to use, allocated to the dedicated subnet
+-  pod-ip-range: 172.17.0.0/16
+   # The namespace in which to manage service enablement resources
+   projects-namespace: projects
+   # The group in which to manage the list of groups that can be used for RBAC.
+   # Must be named exactly 'gke-security-groups'.
+-  security-group: gke-security-group@example.com
+-  # The private IP range for services to use, allocated to the dedicated subnet
+-  service-ip-range: 172.18.0.0/16
++  security-group: gke-security-groups@example.com
++  # The reference to the network
++  network-ref: projects/network-project-id/global/networks/default
++  # The private IP range name for pods to use, this range must already exist
++  pods-range-name: pods
++  # The project in which to manage cluster resources
++  project-id: project-id
++  # The private IP range name for services to use, this range must already exist
++  services-range-name: services
++  # The reference to the subnet
++  subnet-ref: projects/network-project-id/regions/region/subnetworks/default

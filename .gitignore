@@ -1,0 +1,5 @@
+bin/
+gke/
+sales-cluster/
+compare/
+!results/*

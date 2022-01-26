@@ -1,0 +1,24 @@
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: secondary
+  annotations:
+    blueprints.cloud.google.com/title: GKE Node Pool blueprint
+upstream:
+  type: oci
+  oci:
+    image: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke:v2
+    path: /nodepools/primary
+  updateStrategy: resource-merge
+upstreamLock:
+  type: oci
+  oci:
+    image: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke:v2
+    path: /nodepools/primary
+    digest: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke@sha256:c2f83435928e500f4fbc41603fcbaf2dff54289382db091e0b9df0a7b4e59e73
+info:
+  description: A GKE node pool with a dedicated service account
+pipeline:
+  mutators:
+    - image: gcr.io/kpt-fn/apply-setters:v0.1
+      configPath: setters.yaml

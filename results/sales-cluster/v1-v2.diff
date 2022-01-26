@@ -1,0 +1,28 @@
+diff -r -u10 compare/sales-cluster/v1/Kptfile compare/sales-cluster/v2/Kptfile
+--- compare/sales-cluster/v1/Kptfile	2022-01-26 01:50:01.867066690 +0000
++++ compare/sales-cluster/v2/Kptfile	2022-01-26 01:50:02.419105485 +0000
+@@ -10,22 +10,22 @@
+     image: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke:v1
+   updateStrategy: resource-merge
+ upstreamLock:
+   type: oci
+   oci:
+     image: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke:v1
+     digest: us-docker.pkg.dev/dev-fleet-9045b/my-blueprints/gke@sha256:33901be03c6b557c5cff9744a8fe2e5c9784b6bc2daf946a2b151a6845f7be66
+ origin:
+   type: oci
+   oci:
+-    image: us-docker.pkg.dev/dev-fleet-9045b/my-instances/sales-cluster:v1
+-    digest: us-docker.pkg.dev/dev-fleet-9045b/my-instances/sales-cluster@sha256:1cbae5150fd4199f4aa25d9209192ee163652818266959bdcc7fc89510abfe19
++    image: us-docker.pkg.dev/dev-fleet-9045b/my-instances/sales-cluster:v2
++    digest: us-docker.pkg.dev/dev-fleet-9045b/my-instances/sales-cluster@sha256:54c082e2ab1a701ea281cf84c6dea50d59a0d6805fe8c5bf0efdede0f4307d9e
+ info:
+   description: |
+     A GKE cluster with a primary node pool and a dedicated subnet.
+ 
+     For a full tutorial, see
+     [Managing GKE clusters with ConfigController](https://cloud.google.com/anthos-config-management/docs/tutorials/gke-cluster-blueprint).
+ pipeline:
+   mutators:
+     - image: gcr.io/kpt-fn/apply-setters:v0.1
+       configPath: setters.yaml
